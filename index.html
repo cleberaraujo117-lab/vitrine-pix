@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vitrine Pix - V2 Supabase</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}
+body{background:#0a0a0a;color:#fff;min-height:100vh;padding:16px}
+.card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:20px;padding:20px;margin-bottom:16px}
+.btn{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;border:none;padding:14px 24px;border-radius:999px;font-weight:700;cursor:pointer;width:100%;font-size:16px}
+.btn:disabled{opacity:0.5}
+input,select,textarea{width:100%;background:#0f0f0f;border:1px solid #333;border-radius:12px;padding:12px;color:#fff;margin-top:6px;margin-bottom:12px}
+label{font-size:13px;color:#aaa;font-weight:600}
+.badge{background:#1f2937;padding:6px 12px;border-radius:999px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+.prod{display:flex;gap:12px;background:#1a1a1a;border-radius:16px;padding:14px;margin-bottom:12px;align-items:center}
+.prod img{width:72px;height:72px;border-radius:14px;object-fit:cover;background:#222}
+.pixbox{background:#fff;color:#000;border-radius:20px;padding:20px}
+.success{background:#065f46;border:1px solid #10b981;color:#d1fae5;padding:16px;border-radius:16px;margin-top:16px}
+.error{background:#7f1d1d;border:1px solid #ef4444;color:#fecaca;padding:16px;border-radius:16px;margin-top:16px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const SUPABASE_URL = 'https://jpwrfjgurmungshjdilns.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impwd3Jmamd1cm1uZ3NoamRpbG5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1NDczNzEsImV4cCI6MjEwNDEyMzM3MX0.3-uq7oHnGFSqmVtQ2X1-y2n_jUC6rxe4mp-0M4ShZUY';
+const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function getParam(v){return new URLSearchParams(location.search).get(v)}
+
+async function init(){
+ const v = getParam('v');
+ if(!v){renderCreator()} else {renderVitrine(v)}
+}
+function renderCreator(){
+ document.getElementById('app').innerHTML = `
+ <div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2>Criar Vitrine Pix</h2><span class="badge" id="conn">🔴 Testando...</span></div>
+ <p style="color:#888;font-size:13px;margin-top:8px">V2 conectado ao Supabase vitrine-pix</p></div>
+ <div class="card">
+ <label>Nome do Negócio</label><input id="nome" placeholder="JC acessórios">
+ <label>Nicho</label><input id="nicho" placeholder="Acessórios">
+ <label>WhatsApp com DDD (só números)</label><input id="zap" placeholder="88999999999">
+ <label>Plano</label><select id="plano"><option value="teste">Teste 7 dias grátis</option><option value="pro">Pro 30 dias - R$47</option></select>
+ <label>Produto 1 - Nome</label><input id="p1n" placeholder="Combo Glow">
+ <label>Produto 1 - Preço</label><input id="p1p" placeholder="47,00">
+ <label>Produto 1 - Descrição</label><input id="p1d" placeholder="Kit com 3 produtos">
+ <button class="btn" onclick="criar()">Gerar Vitrine e Salvar no Supabase</button>
+ <div id="msg"></div>
+ </div>
+ <div class="card" id="listaBox"><h3 style="margin-bottom:12px">📋 Minhas Vitrines (Painel do Dono)</h3><div id="lista">Carregando...</div></div>`;
+ testConn();
+ listar();
+}
+async function listar(){
+ const {data,error}=await supa.from('vitrines').select('*').order('data_criacao',{ascending:false});
+ const el=document.getElementById('lista');
+ if(error){el.innerHTML='<small style="color:#f87171">Erro: '+error.message+'</small>'; return}
+ if(!data || data.length===0){el.innerHTML='<small style="color:#888">Nenhuma vitrine salva ainda. Crie a primeira acima. Se não aparece, sua Vercel ainda está com arquivo velho.</small>'; return}
+ el.innerHTML=data.map(v=>{
+   const exp=new Date(v.data_expiracao);
+   const dias=Math.ceil((exp-new Date())/86400000);
+   const vencido=dias<0;
+   const pausado=v.status==='pausado';
+   return `<div style="display:flex;justify-content:space-between;align-items:center;background:#0f0f0f;border:1px solid #222;padding:12px;border-radius:12px;margin-bottom:8px">
+   <div><b>${v.nome_negocio}</b> <span style="font-size:11px;color:${pausado?'#f59e0b':vencido?'#ef4444':'#10b981'}">${pausado?'⏸ PAUSADA':vencido? 'VENCIDA há '+Math.abs(dias)+' dias' : dias+' dias restantes'}</span><br><small style="color:#888">${v.id} | Zap: ${v.whatsapp}</small></div>
+   <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><a href="?v=${v.id}" style="background:#333;color:#fff;padding:8px 12px;border-radius:999px;text-decoration:none;font-size:12px">Ver</a>
+   <button onclick="editar('${v.id}')" style="background:#3b82f6;color:#fff;border:none;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer">✏️ Editar</button>
+   ${pausado ? `<button onclick="despausar('${v.id}')" style="background:#10b981;color:#fff;border:none;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer">▶️ Despausar</button>` : `<button onclick="pausar('${v.id}')" style="background:#f59e0b;color:#000;border:none;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer">⏸ Pausar</button>`}
+   <button onclick="excluir('${v.id}')" style="background:#dc2626;color:#fff;border:none;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer">🗑</button></div></div>`;
+ }).join('');
+}
+async function pausar(id){
+ if(!confirm('Pausar vitrine '+id+'? O cliente vai ver "Plano Vencido" e botão pra te enviar comprovante.')) return;
+ const {error}=await supa.from('vitrines').update({status:'pausado'}).eq('id',id);
+ if(error){alert('Erro: '+error.message)} else {alert('⏸ Vitrine pausada! Cliente vê tela de pagamento.'); listar()}
+}
+async function despausar(id){
+ if(!confirm('Despausar vitrine '+id+'? Isso libera após cliente pagar. Vai renovar por +30 dias?')) return;
+ const novaExp=new Date(); novaExp.setDate(novaExp.getDate()+30);
+ const {error}=await supa.from('vitrines').update({status:'ativo', plano:'pro', data_expiracao:novaExp.toISOString()}).eq('id',id);
+ if(error){alert('Erro: '+error.message)} else {alert('✅ Vitrine liberada por 30 dias!'); listar()}
+}
+async function editar(id){
+ const {data,error}=await supa.from('vitrines').select('*').eq('id',id).single();
+ if(error||!data){alert('Erro ao buscar: '+(error?error.message:'não encontrado')); return}
+ const novoZap = prompt('Editar WhatsApp (só números com DDD):\nDeixe igual se não quiser mudar', data.whatsapp);
+ if(novoZap===null) return;
+ const novoNome = prompt('Editar Nome do negócio (ou deixe igual):', data.nome_negocio);
+ if(novoNome===null) return;
+ // NÃO mexe em produto, preço, descrição, plano, status - só zap e nome
+ const {error:err2}=await supa.from('vitrines').update({nome_negocio:novoNome.trim(), whatsapp:novoZap.trim()}).eq('id',id);
+ if(err2){alert('Erro ao salvar: '+err2.message)} else {alert('✅ Só seu WhatsApp e nome foram atualizados! Produto e preço continuam iguais.'); listar()}
+}
+async function excluir(id){
+ if(!confirm('Tem certeza que quer EXCLUIR a vitrine '+id+'? O link vai parar de funcionar na hora. Isso serve pra quando cliente não pagar.')) return;
+ const {error}=await supa.from('vitrines').delete().eq('id',id);
+ if(error){alert('Erro ao excluir: '+error.message)} else {alert('✅ Vitrine '+id+' excluída! Link quebrado.'); listar()}
+}
+async function testConn(){
+ const {data,error} = await supa.from('vitrines').select('id').limit(1);
+ const el=document.getElementById('conn');
+ if(error){el.innerHTML='🔴 Erro: '+error.message; el.style.background='#7f1d1d'} else {el.innerHTML='🟢 Conectado ao Supabase'; el.style.background='#065f46'}
+}
+async function criar(){
+ const nome=document.getElementById('nome').value.trim();
+ const nicho=document.getElementById('nicho').value.trim();
+ const zap=document.getElementById('zap').value.trim();
+ const plano=document.getElementById('plano').value;
+ const p1n=document.getElementById('p1n').value.trim()||'Produto Teste';
+ const p1p=document.getElementById('p1p').value.trim()||'47,00';
+ const p1d=document.getElementById('p1d').value.trim()||'Descrição';
+ if(!nome||!zap){alert('Preencha nome e zap');return}
+ const slug=nome.toLowerCase().normalize('NFD').replace(/[^\w\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-')+'-'+Date.now().toString().slice(-4);
+ const dias=plano==='pro'?30:7;
+ const exp=new Date(); exp.setDate(exp.getDate()+dias);
+ const payload={
+   id:slug,
+   nome_negocio:nome,
+   whatsapp:zap,
+   plano:plano,
+   data_criacao:new Date().toISOString(),
+   data_expiracao:exp.toISOString(),
+   status:'ativo',
+   produtos:[{nome:p1n, preco:p1p, desc:p1d, img:''}],
+   ebook_ativo:'10 Receitas Detox'
+ };
+ document.getElementById('msg').innerHTML='<div class="card">Salvando...</div>';
+ console.log('payload',payload);
+ const {data,error}=await supa.from('vitrines').insert([payload]).select();
+ if(error){
+   document.getElementById('msg').innerHTML=`<div class="error"><b>Erro ao salvar:</b><br>${error.message}<br><br>Causa comum: RLS. Rode no SQL Editor:<br><code>drop policy if exists "libera" on vitrines; create policy "libera" on vitrines for all using (true) with check (true);</code></div>`;
+   console.error(error);
+ } else {
+   const link=location.origin+location.pathname+'?v='+slug;
+   document.getElementById('msg').innerHTML=`<div class="success"><b>✅ Salvo no Supabase!</b><br><br>Link da vitrine:<br><a href="${link}" style="color:#6ee7b7;word-break:break-all">${link}</a><br><br><button class="btn" onclick="location.href='${link}'">Abrir Vitrine</button><br><br><small>Agora volta no Supabase > Table Editor > vitrines e atualiza. Tem que aparecer ${slug}</small></div>`;
+ }
+}
+async function renderVitrine(id){
+ document.getElementById('app').innerHTML='<div class="card">Carregando vitrine '+id+'...</div>';
+ const {data,error}=await supa.from('vitrines').select('*').eq('id',id).single();
+ if(error||!data){
+   document.getElementById('app').innerHTML=`<div class="error">Vitrine ${id} não encontrada no Supabase.<br>${error?error.message:''}<br><br><a href="${location.pathname}" style="color:#fecaca">Voltar</a></div>`;
+   return;
+ }
+ const exp=new Date(data.data_expiracao);
+ const now=new Date();
+ const diffDays=Math.ceil((exp-now)/86400000);
+ const isPausado = data.status === 'pausado';
+ const isExpirado = exp < now && data.plano!=='pro';
+ if(isPausado || isExpirado){
+   const motivo = isPausado ? 'Pausada pelo administrador - plano vencido' : 'O teste de 7 dias acabou';
+   document.getElementById('app').innerHTML=`
+   <div class="card" style="text-align:center;padding:40px 20px">
+   <div style="font-size:48px">🔒</div>
+   <h2 style="margin-top:16px">Plano Vencido</h2>
+   <p style="color:#888;margin-top:8px">${motivo} - ${data.nome_negocio}</p>
+   <p style="margin-top:16px;color:#fbbf24;font-weight:700">Para reativar sua vitrine por 30 dias: R$47</p>
+   <div class="pixbox" style="margin-top:16px"><b>PAGAMENTO VIA PIX</b><br><div style="background:#f3f4f6;padding:12px;border-radius:12px;margin-top:8px;font-weight:700;word-break:break-all">cleberaraujo117@gmail.com</div><small>Chave PIX oficial - Copie e pague no seu banco</small></div>
+   <a href="https://wa.me/559988695063?text=Ol%C3%A1%20Cleber!%20Meu%20plano%20da%20vitrine%20${encodeURIComponent(data.nome_negocio)}%20venceu.%20Paguei%20os%20R%2447%20via%20PIX%20e%20segue%20o%20comprovante:" class="btn" style="display:block;margin-top:16px;text-decoration:none;text-align:center;background:#25D366">📲 Clique aqui para enviar o comprovante no WhatsApp</a>
+   <p style="font-size:11px;color:#666;margin-top:12px">Após enviar o comprovante, sua vitrine é liberada em até 10 minutos</p>
+   </div>`;
+   return;
+ }
+ const prod=data.produtos||[];
+ document.getElementById('app').innerHTML=`
+ <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+  <div style="display:flex;gap:12px;align-items:center"><div style="width:44px;height:44px;border-radius:999px;background:#8b5cf6;display:flex;align-items:center;justify-content:center;font-weight:800">${data.nome_negocio[0].toUpperCase()}</div><div><b>${data.nome_negocio}</b><div style="font-size:12px;color:#888">Acessórios</div></div></div>
+  <span class="badge">⏱ ${diffDays} dias restantes</span>
+ </div>
+ ${prod.map(p=>`<div class="prod"><img src="${p.img||'https://via.placeholder.com/100'}"><div style="flex:1"><b>${p.nome}</b><div style="font-size:13px;color:#888">${p.desc}</div><div style="margin-top:6px;font-weight:800">R$ ${p.preco}</div></div><a href="https://wa.me/55${data.whatsapp}?text=Quero%20${encodeURIComponent(p.nome)}" style="background:#a855f7;color:#fff;padding:10px 16px;border-radius:999px;text-decoration:none;font-size:13px;font-weight:700">Pedir no Zap</a></div>`).join('')}
+ <div class="card" style="background:#272111;border-color:#a16207"><b>🎁 Bônus desbloqueado: 10 Receitas Detox Que Vendem</b><p style="font-size:12px;color:#aaa;margin-top:6px">Seu cliente ganha acesso após compra via PIX. Comissão 70% pra você.</p></div>
+ <div class="pixbox"><b>PAGAMENTO VIA PIX</b><div style="background:#f3f4f6;padding:12px;border-radius:12px;margin-top:8px;font-weight:700;word-break:break-all">cleberaraujo117@gmail.com</div><small>Chave PIX oficial • Recebimento instantâneo</small></div>
+ <div style="margin-top:16px;text-align:center"><a href="${location.pathname}" style="color:#666;font-size:12px">Criar minha vitrine</a></div>
+ `;
+}
+init();
+</script>
+</body>
+</html>
